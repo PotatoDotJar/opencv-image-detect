@@ -9,8 +9,18 @@ print("GPUs:")
 print(tf.config.list_physical_devices('GPU'))
 
 # Use openimages_v4/ssd/mobilenet_v2 model
-detector = hub.load("https://tfhub.dev/google/openimages_v4/ssd/mobilenet_v2/1").signatures['default']
-  
+#detector = hub.load("https://tfhub.dev/google/openimages_v4/ssd/mobilenet_v2/1")
+
+# Use resnet
+detector = hub.load("https://tfhub.dev/tensorflow/retinanet/resnet50_v1_fpn_1024x1024/1")
+
+classes = []
+
+with open("ImageNetLabels.txt") as f:
+    labels = f.readlines()
+    classes = [l.strip() for l in labels]
+print(f"Loaded {len(classes)} classes")
+
 vid = cv2.VideoCapture(0)
 
 window = 'window'
@@ -44,15 +54,14 @@ while(True):
     
     rgb = frame #cv2.resize(frame, (width, height))
 
-    rgb_tensor = tf.image.convert_image_dtype(rgb, tf.float32)[tf.newaxis, ...]
+    rgb_tensor = tf.image.convert_image_dtype(rgb, tf.uint8)[tf.newaxis, ...]
 
     result = detector(rgb_tensor)
     result = {key:value.numpy() for key,value in result.items()}
-    boxes = result["detection_boxes"]
-    class_entities = result["detection_class_entities"]
-    class_labels = result["detection_boxes"]
-    class_names = result["detection_boxes"]
-    scores = result["detection_scores"]
+
+    boxes = result["detection_boxes"][0]
+    class_label_indexes = result["detection_classes"][0]
+    scores = result["detection_scores"][0]
    
     # loop throughout the detections and place a box around it
     for i in range(boxes.shape[0]):
@@ -68,7 +77,9 @@ while(True):
         img_boxes = cv2.rectangle(rgb, (left, top), (right, bottom), (0, 255, 0), 1)
         font = cv2.FONT_HERSHEY_SIMPLEX
 
-        display_str = "{}: {}%".format(class_entities[i].decode("ascii"), int(100 * scores[i]))
+        label_idx = int(class_label_indexes[i])
+
+        display_str = f"{classes[label_idx]}: {int(100 * scores[i])}%"
         cv2.putText(img_boxes, display_str, (left, bottom - 10), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
     time_diff = round((time.time() - last_frame_time) * 100, 2)
