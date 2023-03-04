@@ -2,6 +2,11 @@
 import tensorflow_hub as hub
 import tensorflow as tf
 import cv2
+import time
+import math
+
+print("GPUs:")
+print(tf.config.list_physical_devices('GPU'))
 
 # Use openimages_v4/ssd/mobilenet_v2 model
 detector = hub.load("https://tfhub.dev/google/openimages_v4/ssd/mobilenet_v2/1").signatures['default']
@@ -10,9 +15,13 @@ vid = cv2.VideoCapture(0)
 
 window = 'window'
 
-width = 512
-height = 512
+width = 1280
+height = 720
 thresh = 40
+
+vid.set(cv2.CAP_PROP_FPS, 30)
+vid.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+vid.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
 
 def onThreshChange(value):
     global thresh
@@ -21,11 +30,15 @@ def onThreshChange(value):
 cv2.namedWindow(window)
 cv2.createTrackbar('score threshold', window, thresh, 100, onThreshChange)
 
+last_frame_time = time.time()
+
+ret, test_frame = vid.read()
+print(f"Video shape is {test_frame.shape}")
+
 while(True):
     ret, frame = vid.read()
-
-    inp = cv2.resize(frame, (width, height))
-    rgb = cv2.cvtColor(inp, cv2.COLOR_BGR2RGB)
+    
+    rgb = frame #cv2.resize(frame, (width, height))
 
     rgb_tensor = tf.image.convert_image_dtype(rgb, tf.float32)[tf.newaxis, ...]
 
@@ -42,7 +55,7 @@ while(True):
         if(scores[i] * 100 < thresh):
             continue
 
-        im_width, im_height = rgb.shape[0:2]
+        im_height, im_width = rgb.shape[0:2]
 
         ymin, xmin, ymax, xmax = tuple(boxes[i])
 
@@ -54,6 +67,13 @@ while(True):
         display_str = "{}: {}%".format(class_entities[i].decode("ascii"), int(100 * scores[i]))
         cv2.putText(img_boxes, display_str, (left, bottom - 10), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
+    time_diff = round((time.time() - last_frame_time) * 100, 2)
+    last_frame_time = time.time()
+
+    fps = 1000 // time_diff
+
+    cv2.putText(rgb, f"FT: {time_diff}ms", (10, 20), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+    cv2.putText(rgb, f"FPS: {fps}", (10, 40), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
     cv2.imshow(window, rgb)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
