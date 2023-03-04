@@ -37,6 +37,10 @@ print(f"Video shape is {test_frame.shape}")
 
 while(True):
     ret, frame = vid.read()
+
+    # If the frame was read properly
+    if not ret:
+        continue
     
     rgb = frame #cv2.resize(frame, (width, height))
 
